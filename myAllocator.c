@@ -69,6 +69,8 @@ BlockPrefix_t *makeFreeBlock(void *addr, size_t size) {
 /* lowest & highest address in arena (global vars) */
 BlockPrefix_t *arenaBegin = (void *)0;
 void *arenaEnd = 0;
+/* keeps a pointer to the prefix of the  next region to be checked by nextFitAllocator */
+BlockPrefix_t *nextReg = (void *)0;
 
 void initializeArena() {
     if (arenaBegin != 0)	/* only initialize once */
@@ -191,7 +193,19 @@ BlockPrefix_t *findFirstFit(size_t s) {	/* find first block with usable space > 
     return growArena(s);
 }
 
-/* conversion between blocks & regions (offset of prefixSize */
+BlockPrefix_t *findNextFit(size_t s) {	/* find next block with usable space > s */
+  BlockPrefix_t *p = nextReg;                             //start by setting p to next region to be checked
+  while (p) {                                             //loop while looking for appropriate region
+    if (!p->allocated && computeUsableSpace(p) >= s)      //approprite region is unallocated and big enough
+      return p;                                           //return if found
+    p = getNextPrefix(p);                                 //else set pointer to next region
+    if(!pcheck((void *)p))                                //make sure next prefix is inside arena
+	p = arenaBegin;                                   //if not set to the beginning of arena and check from there
+  }
+    return growArena(s);
+}
+
+/* conversion between blocks(usable space) & regions(block + prefix&suffix) (offset of prefixSize) */
 
 BlockPrefix_t *regionToPrefix(void *r) {
   if (r)
