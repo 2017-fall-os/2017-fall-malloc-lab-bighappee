@@ -265,6 +265,25 @@ void freeRegion(void *r) {
    TODO: if the successor 's' to r's block is free, and there is sufficient space
    in r + s, then just adjust sizes of r & s.
 */
+/*
+void *resizeRegion(void *r, size_t newSize) {
+  int oldSize;
+  if (r != (void *)0)		/* old region existed 
+    oldSize = computeUsableSpace(regionToPrefix(r));
+  else
+    oldSize = 0;		/* non-existant regions have size 0 
+  if (oldSize >= newSize)	/* old region is big enough 
+    return r;
+  else {			/* allocate new region & copy old data 
+    char *o = (char *)r;	/* treat both regions as char* 
+    char *n = (char *)firstFitAllocRegion(newSize); 
+    int i;
+    for (i = 0; i < oldSize; i++) /* copy byte-by-byte, should use memcpy 
+      n[i] = o[i];
+    freeRegion(o);		/* free old region 
+    return (void *)n;
+  }
+*/
 void *resizeRegion(void *r, size_t newSize) {
   int oldSize;
   if (r != (void *)0)		/* old region existed */
@@ -273,14 +292,28 @@ void *resizeRegion(void *r, size_t newSize) {
     oldSize = 0;		/* non-existant regions have size 0 */
   if (oldSize >= newSize)	/* old region is big enough */
     return r;
-  else {			/* allocate new region & copy old data */
-    char *o = (char *)r;	/* treat both regions as char* */
-    char *n = (char *)firstFitAllocRegion(newSize); 
-    int i;
-    for (i = 0; i < oldSize; i++) /* copy byte-by-byte, should use memcpy */
-      n[i] = o[i];
-    freeRegion(o);		/* free old region */
+  else {
+    int coSize;	                                        // coSize holds amount of usuable space after coalescing the next region
+    int exitLoop =0;                                   
+    while (!exitLoop){
+      BlockPrefix_t *next;                              // set next to the prefix of the next region
+      next = getNextPrefix(regionToPrefix(r));
+      if (next)                                         // attempt to coalesce with the current region
+	coalescePrev(next);
+      coSize = computeUsableSpace(regionToPrefix(r));   // see how much space the current region holds
+      if (coSize == oldSize)                            // if the region didn't grow the next region was allocated already
+	exitLoop =1;                                    // so exit the loop and find appropriately sized region
+      else if(coSize >= newSize)                        // if after coalescing the region is now big enough
+	return r;                                       // return the current region otherwise attempt to coalesce the next 
+      else{                                             // region as well(re-enter the loop)
+	oldSize = coSize;
+      }
+    }
+    void *n = firstFitAllocRegion(newSize); 
+    memcpy(n,r,newSize);
+    freeRegion(r);		/* free old region */
     return (void *)n;
   }
+
 }
 
