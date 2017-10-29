@@ -193,11 +193,13 @@ BlockPrefix_t *findFirstFit(size_t s) {	/* find first block with usable space > 
     return growArena(s);
 }
 
-BlockPrefix_t *findNextFit(size_t s) {	/* find next block with usable space > s */
+BlockPrefix_t *findNextFit(size_t s) {                    /* find next block with usable space > s */
   BlockPrefix_t *p = nextReg;                             //start by setting p to next region to be checked
   while (p) {                                             //loop while looking for appropriate region
-    if (!p->allocated && computeUsableSpace(p) >= s)      //approprite region is unallocated and big enough
+    if (!p->allocated && computeUsableSpace(p) >= s){     //approprite region is unallocated and big enough
+     
       return p;                                           //return if found
+    }
     p = getNextPrefix(p);                                 //else set pointer to next region
     if(!pcheck((void *)p))                                //make sure next prefix is inside arena
 	p = arenaBegin;                                   //if not set to the beginning of arena and check from there
@@ -247,10 +249,33 @@ void *firstFitAllocRegion(size_t s) {
   
 }
 
+void *nextFitAllocRegion(size_t s) {
+  size_t asize = align8(s);
+  BlockPrefix_t *p;
+  if (arenaBegin == 0)		/* arena uninitialized? */
+    initializeArena();
+  p = findNextFit(s);		/* find a block */
+  if (p) {			/* found a block */
+    size_t availSize = computeUsableSpace(p);
+    if (availSize >= (asize + prefixSize + suffixSize + 8)) { /* split block? */
+      void *freeSliverStart = (void *)p + prefixSize + suffixSize + asize;
+      void *freeSliverEnd = computeNextPrefixAddr(p);
+      makeFreeBlock(freeSliverStart, freeSliverEnd - freeSliverStart);
+      makeFreeBlock(p, freeSliverStart - (void *)p); /* piece being allocated */
+    }
+    p->allocated = 1;		/* mark as allocated */
+    nextReg = getNextPrefix(p);
+    return prefixToRegion(p);	/* convert to *region */
+  } else {			/* failed */
+    return (void *)0;
+  }
+  
+}
+
 void freeRegion(void *r) {
     if (r != 0) {
 	BlockPrefix_t *p = regionToPrefix(r); /* convert to block */
-	p->allocated = 0;	/* mark as free */
+	p->allocated = 0;	              /* mark as free */
 	coalesce(p);
     }
 }
@@ -294,6 +319,7 @@ void *resizeRegion(void *r, size_t newSize) {
     return r;
   else {
     int coSize;	                                        // coSize holds amount of usuable space after coalescing the next region
+    int currentSize = oldSize;
     int exitLoop =0;                                   
     while (!exitLoop){
       BlockPrefix_t *next;                              // set next to the prefix of the next region
@@ -301,16 +327,16 @@ void *resizeRegion(void *r, size_t newSize) {
       if (next)                                         // attempt to coalesce with the current region
 	coalescePrev(next);
       coSize = computeUsableSpace(regionToPrefix(r));   // see how much space the current region holds
-      if (coSize == oldSize)                            // if the region didn't grow the next region was allocated already
+      if (coSize == currentSize)                            // if the region didn't grow the next region was allocated already
 	exitLoop =1;                                    // so exit the loop and find appropriately sized region
       else if(coSize >= newSize)                        // if after coalescing the region is now big enough
 	return r;                                       // return the current region otherwise attempt to coalesce the next 
       else{                                             // region as well(re-enter the loop)
-	oldSize = coSize;
+	currentSize = coSize;
       }
     }
     void *n = firstFitAllocRegion(newSize); 
-    memcpy(n,r,newSize);
+    memcpy(n,r,oldSize);
     freeRegion(r);		/* free old region */
     return (void *)n;
   }
