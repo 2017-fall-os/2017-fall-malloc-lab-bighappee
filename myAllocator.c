@@ -199,7 +199,6 @@ BlockPrefix_t *findNextFit(size_t s) {                    /* find next block wit
   BlockPrefix_t *p = nextReg;                             //start by setting p to next region to be checked
   while (p) {                                             //loop while looking for appropriate region
     if (!p->allocated && computeUsableSpace(p) >= s){     //approprite region is unallocated and big enough
-     
       return p;                                           //return if found
     }
     p = getNextPrefix(p);                                 //else set pointer to next region
@@ -312,44 +311,49 @@ void *resizeRegion(void *r, size_t newSize) {
   }
 */
 
-BlockPrefix_t *coalesceNext(BlockPrefix_t *p) {	/* coalesce p with prev, return prev if coalesced, otherwise p */
-    BlockPrefix_t *next = getNextPrefix(p);
-    if (p && next && (!next->allocated)) {
-      BlockSuffix_t *s = next->suffix;
-      p->suffix = s;
-      s->prefix = p;
+
+
+BlockPrefix_t *coalesceNext(BlockPrefix_t *p, size_t neededSpace) {	/* coalesce p with next, always returns p */
+  BlockPrefix_t *next = getNextPrefix(p);                                      //point to prefix of region we are taking from
+  size_t aSize = align8(neededSpace);                                          //make sure space is multiple of 8
+  BlockSuffix_t *s;                                                            //create the suffix for enlarged region
+  if (p && next && (!next->allocated)) { 
+    size_t availSize = computeUsableSpace(next);                               //check how much space is available
+    if (availSize >= (aSize + prefixSize + suffixSize + 8)) {                  //see if space is worth splitting 
+      void *freeSliverStart = (void *)next + prefixSize + aSize;  //split and created new unallocated region
+      void *freeSliverEnd = getNextPrefix(next);
+      makeFreeBlock(freeSliverStart, freeSliverEnd - freeSliverStart);;
+      s = freeSliverStart-suffixSize;                                          //set suffix to 
     }
-    return p;
+    else {
+      s = next->suffix;
+    }
+    p->suffix = s; 
+    s->prefix = p; 
+  }
+  return p; 
 }  
 
 void *resizeRegion(void *r, size_t newSize) {
-  int oldSize;
+  size_t oldSize, coSize;
+  BlockPrefix_t *next = getNextPrefix(regionToPrefix(r));
   if (r != (void *)0)		/* old region existed */
     oldSize = computeUsableSpace(regionToPrefix(r));
   else
-    oldSize = 0;		/* non-existant regions have size 0 */
+    oldSize = 0;	     
   if (oldSize >= newSize)	/* old region is big enough */
     return r;
   else {
-    int coSize;	                                        // coSize holds amount of usuable space after coalescing the next region
-    int currentSize = oldSize;
-    int exitLoop =0;                                   
-    while (!exitLoop){    
-      coalesceNext(regionToPrefix(r));                  // attempt to coalesce with the next region
-      coSize = computeUsableSpace(regionToPrefix(r));   // see how much space the current region holds
-      if (coSize == currentSize)                        // if the region didn't grow the next region was allocated already
-	exitLoop =1;                                    // so exit the loop and find appropriately sized region
-      else if(coSize >= newSize)                        // if after coalescing the region is now big enough
-	return r;                                       // return the current region otherwise attempt to coalesce the next 
-      else{                                             // region as well(re-enter the loop)
-	currentSize = coSize;
-      }
+    coSize = oldSize + prefixSize + suffixSize + computeUsableSpace(next);    //if combination of 2 regions is big enough
+      if (coSize >= newSize && (!next->allocated)) {                          //and it's not allocated then take what is needed 
+	coalesceNext(regionToPrefix(r), (newSize-oldSize));                   //from adjoining region and return
+      return r;                                                                
     }
-    void *n = nextFitAllocRegion(newSize); 
-    memcpy(n,r,oldSize);
-    freeRegion(r);		/* free old region */
-    return (void *)n;
   }
-
+  void *n = nextFitAllocRegion(newSize);                                      //otherwise search for another suitable region
+  memcpy(n,r,oldSize);
+  freeRegion(r);		/* free old region */
+  return (void *)n;
 }
+
 
