@@ -21,16 +21,22 @@ int main()
 {
   void *p1, *p2, *p3;
   arenaCheck();
-  p1 = firstFitAllocRegion(254);
+  p1 = nextFitAllocRegion(254);
   arenaCheck();
-  p2 = firstFitAllocRegion(25400);
+  p2 = nextFitAllocRegion(25400);
   arenaCheck();
-  p3 = firstFitAllocRegion(254);
+  p3 = nextFitAllocRegion(254);
   printf("%8zx %8zx %8zx\n", p1, p2, p3);
   arenaCheck();
-  freeRegion(p2);
+  p1=resizeRegion(p1,1024);                  //tests resize when there is not an open region
+  printf("%8zx %8zx %8zx\n", p1, p2, p3);
   arenaCheck();
   freeRegion(p3);
+  arenaCheck();
+  p2=resizeRegion(p2,25605);                 //tests resize when there is an open region 
+  printf("%8zx %8zx\n", p1, p2);
+  arenaCheck();
+  freeRegion(p2);
   arenaCheck();
   freeRegion(p1);
   arenaCheck();
@@ -38,12 +44,17 @@ int main()
     struct timeval t1, t2;
     int i;
     getutime(&t1);
-    for(i = 0; i < 10000; i++)
-      if (firstFitAllocRegion(4) == 0) 
+    for(i = 0; i < 10000; i++){
+      if (nextFitAllocRegion(4) == 0) {
+	printf("Houston we have a problem at count : %d\n", i);
 	break;
+      }
+    }  
     getutime(&t2);
-    printf("%d firstFitAllocRegion(4) required %f seconds\n", i, diffTimeval(&t2, &t1));
+    printf("%d nextFitAllocRegion(4) required %f seconds\n", i, diffTimeval(&t2, &t1));
+
   }
+  
   return 0;
 }
 
