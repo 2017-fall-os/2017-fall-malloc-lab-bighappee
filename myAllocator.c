@@ -5,6 +5,11 @@
 #include "myAllocator.h"
 
 /*
+
+  Christopher Tarango
+  October 29, 2017
+  malloc lab
+
   This is a simple endogenous first-fit allocator.  
 
   Each allocated memory region is sandwiched between a "BlockPrefix"
@@ -265,7 +270,7 @@ void *nextFitAllocRegion(size_t s) {
       makeFreeBlock(p, freeSliverStart - (void *)p); /* piece being allocated */
     }
     p->allocated = 1;		/* mark as allocated */
-    nextReg = getNextPrefix(p);
+    nextReg = getNextPrefix(p); /* set marker for next search to next region*/
     return prefixToRegion(p);	/* convert to *region */
   } else {			/* failed */
     return (void *)0;
@@ -280,38 +285,8 @@ void freeRegion(void *r) {
 	coalesce(p);
     }
 }
-
-
-/*
-  like realloc(r, newSize), resizeRegion will return a new region of size
-   newSize containing the old contents of r by:
-   1. checking if the present region has sufficient available space to
-   satisfy the request (if so, do nothing)
-   2. allocating a new region of sufficient size & copying the data
-   TODO: if the successor 's' to r's block is free, and there is sufficient space
-   in r + s, then just adjust sizes of r & s.
-*/
-/*
-void *resizeRegion(void *r, size_t newSize) {
-  int oldSize;
-  if (r != (void *)0)		/* old region existed 
-    oldSize = computeUsableSpace(regionToPrefix(r));
-  else
-    oldSize = 0;		/* non-existant regions have size 0 
-  if (oldSize >= newSize)	/* old region is big enough 
-    return r;
-  else {			/* allocate new region & copy old data 
-    char *o = (char *)r;	/* treat both regions as char* 
-    char *n = (char *)firstFitAllocRegion(newSize); 
-    int i;
-    for (i = 0; i < oldSize; i++) /* copy byte-by-byte, should use memcpy 
-      n[i] = o[i];
-    freeRegion(o);		/* free old region 
-    return (void *)n;
-  }
-*/
-
-
+/*if needed this function borrows from the next region to resize, if necessary 
+  coalesces the entire region for its use*/
 
 BlockPrefix_t *coalesceNext(BlockPrefix_t *p, size_t neededSpace) {	/* coalesce p with next, always returns p */
   BlockPrefix_t *next = getNextPrefix(p);                                      //point to prefix of region we are taking from
@@ -320,7 +295,7 @@ BlockPrefix_t *coalesceNext(BlockPrefix_t *p, size_t neededSpace) {	/* coalesce 
   if (p && next && (!next->allocated)) { 
     size_t availSize = computeUsableSpace(next);                               //check how much space is available
     if (availSize >= (aSize + prefixSize + suffixSize + 8)) {                  //see if space is worth splitting 
-      void *freeSliverStart = (void *)next + prefixSize + aSize;  //split and created new unallocated region
+      void *freeSliverStart = (void *)next + prefixSize + aSize;               //split and created new unallocated region
       void *freeSliverEnd = getNextPrefix(next);
       makeFreeBlock(freeSliverStart, freeSliverEnd - freeSliverStart);;
       s = freeSliverStart-suffixSize;                                          //set suffix to 
@@ -333,6 +308,7 @@ BlockPrefix_t *coalesceNext(BlockPrefix_t *p, size_t neededSpace) {	/* coalesce 
   }
   return p; 
 }  
+
 
 void *resizeRegion(void *r, size_t newSize) {
   size_t oldSize, coSize;
@@ -351,7 +327,7 @@ void *resizeRegion(void *r, size_t newSize) {
     }
   }
   void *n = nextFitAllocRegion(newSize);                                      //otherwise search for another suitable region
-  memcpy(n,r,oldSize);
+  memcpy(n,r,oldSize);                                                        //and copy data from current region to found
   freeRegion(r);		/* free old region */
   return (void *)n;
 }
