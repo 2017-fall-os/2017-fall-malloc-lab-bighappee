@@ -65,6 +65,7 @@ BlockPrefix_t *makeFreeBlock(void *addr, size_t size) {
   p->allocated = 0;
   return p;
 }
+ 
 
 /* lowest & highest address in arena (global vars) */
 BlockPrefix_t *arenaBegin = (void *)0;
@@ -76,6 +77,7 @@ void initializeArena() {
     if (arenaBegin != 0)	/* only initialize once */
 	return; 
     arenaBegin = makeFreeBlock(sbrk(DEFAULT_BRKSIZE), DEFAULT_BRKSIZE);
+    nextReg = arenaBegin;
     arenaEnd = ((void *)arenaBegin) + DEFAULT_BRKSIZE;
 }
 
@@ -309,6 +311,17 @@ void *resizeRegion(void *r, size_t newSize) {
     return (void *)n;
   }
 */
+
+BlockPrefix_t *coalesceNext(BlockPrefix_t *p) {	/* coalesce p with prev, return prev if coalesced, otherwise p */
+    BlockPrefix_t *next = getNextPrefix(p);
+    if (p && next && (!next->allocated)) {
+      BlockSuffix_t *s = next->suffix;
+      p->suffix = s;
+      s->prefix = p;
+    }
+    return p;
+}  
+
 void *resizeRegion(void *r, size_t newSize) {
   int oldSize;
   if (r != (void *)0)		/* old region existed */
@@ -321,13 +334,10 @@ void *resizeRegion(void *r, size_t newSize) {
     int coSize;	                                        // coSize holds amount of usuable space after coalescing the next region
     int currentSize = oldSize;
     int exitLoop =0;                                   
-    while (!exitLoop){
-      BlockPrefix_t *next;                              // set next to the prefix of the next region
-      next = getNextPrefix(regionToPrefix(r));
-      if (next)                                         // attempt to coalesce with the current region
-	coalescePrev(next);
+    while (!exitLoop){    
+      coalesceNext(regionToPrefix(r));                  // attempt to coalesce with the next region
       coSize = computeUsableSpace(regionToPrefix(r));   // see how much space the current region holds
-      if (coSize == currentSize)                            // if the region didn't grow the next region was allocated already
+      if (coSize == currentSize)                        // if the region didn't grow the next region was allocated already
 	exitLoop =1;                                    // so exit the loop and find appropriately sized region
       else if(coSize >= newSize)                        // if after coalescing the region is now big enough
 	return r;                                       // return the current region otherwise attempt to coalesce the next 
@@ -335,7 +345,7 @@ void *resizeRegion(void *r, size_t newSize) {
 	currentSize = coSize;
       }
     }
-    void *n = firstFitAllocRegion(newSize); 
+    void *n = nextFitAllocRegion(newSize); 
     memcpy(n,r,oldSize);
     freeRegion(r);		/* free old region */
     return (void *)n;
