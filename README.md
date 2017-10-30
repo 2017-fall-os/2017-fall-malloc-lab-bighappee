@@ -1,29 +1,9 @@
-# os-malloc
-This directory contains:
+Christopher K. Tarango
+malloc lab
+October 29, 2017
 
-myAllocator.c: a first-fit allocator
-myAllocator.h: its header file
-
-myAllocatorTest1.c: a test program for my allocator 
-
-malloc.c: a replacement for malloc that uses my allocator
-test1.c: a test program that uses this replacement malloc
-
-There are two different testers as some implementations of printf
-call malloc to allocate buffer space. This causes test1 to behave
-improperly as it uses myAllocator as a malloc replacement. In this
-case myAllocatorTest1 will function correctly. The only difference
-between the programs is that test1 uses myAllocator as a malloc
-replacement and myAllocatorTest1 uses myAllocator directly.
-
-Makefile: a fairly portable "makefile", targets "all" and "clean"
-
-To compile: 
- $ make 
-To clean:
- $ make clean
-
-The cygwin runtime uses malloc() and brk() extensively.  It is
-interesting to compare the output of test1 & myAllocatorTest1.  All
-those extra allocated regions are being used by cygwin's libraries!
-
+Tasks Accoplished:
+1. rewrote resizeRegion function to borrrow from the following memory blocks using a coalesceNext function. This function borrows heavily from the findFirstAlloc function in how it splits memory into a used and unused sliver. If sliver is too small to hold an 8 byte memory allocation, a prefix, and a suffix it will simply coalesce the entire region. 
+2. wrote a nextFitAlloc function, it is basically the firstFitAlloc function with a global variable nextReg which is a pointer to the following prefix so that its next invocation starts from that point rather than the beginning of the arena. Completes the 10000 malloc test very quickly.
+3. Updated header files to accomadate added functionality
+4. added tests to myAllocatorTest1 to test resizeRegion, directly uses both my rewritten reSizeRegion, and nextFitAllocator, all indications are both functions work as intended. 
